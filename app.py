@@ -291,17 +291,33 @@ def load_models(feature_method: str):
         base_dir = os.path.join("models", "MI", "Mutual_Information")
     else:
         base_dir = os.path.join("models", model_subdir)
-    n_features = len(FEATURE_SETS.get(feature_method, MI_FEATURES))
+
+    # Debug logs for folder discovery
+    st.info(f"Loading models for '{feature_method}' from '{base_dir}'")
+    st.info(f"Current working directory: {os.getcwd()}")
+
     models = {}
+    if os.path.exists(base_dir):
+        try:
+            entries = os.listdir(base_dir)
+            st.write("Directory contents:", entries)
+        except Exception as e:
+            st.error(f"Could not list directory '{base_dir}': {e}")
+    else:
+        st.warning(f"Model base directory does not exist: {base_dir}")
+
+    n_features = len(FEATURE_SETS.get(feature_method, MI_FEATURES))
 
     for name in ["LSTM", "BiLSTM", "GRU"]:
         path = os.path.join(base_dir, f"{name}.weights.h5")
+        st.write(f"Checking model path: {path} -> exists {os.path.exists(path)}")
         if os.path.exists(path):
             m = _build(name, n_features)
             m.load_weights(path)
             models[name] = m
 
     meta_path = os.path.join(base_dir, "MetaLearner_LogisticRegression.pkl")
+    st.write(f"Checking meta path: {meta_path} -> exists {os.path.exists(meta_path)}")
     meta = joblib.load(meta_path) if os.path.exists(meta_path) else None
     return models, meta
 

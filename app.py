@@ -288,7 +288,7 @@ def _build(arch, n_features):
 def load_models(feature_method: str):
     model_subdir = MODEL_DIR_MAP.get(feature_method, "MI")
     if model_subdir == "MI":
-        base_dir = os.path.join("models", "MI", "Mutual_Information")
+        base_dir = os.path.join("models", "Mutual_Information")
     else:
         base_dir = os.path.join("models", model_subdir)
 

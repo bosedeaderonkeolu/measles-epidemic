@@ -372,80 +372,89 @@ def predict_dataframe(df: pd.DataFrame, active_features: list, feature_method: s
 # ─── World Bank / WHO Data Fetch ────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def fetch_world_bank(iso3: str, year: int):
-    """Fetch World Bank indicators for a country/year."""
+    """Fetch World Bank indicators for a country/year (or future year fallback)."""
     data = {}
     base = "https://api.worldbank.org/v2/country/{iso}/indicator/{ind}?date={yr}&format=json&per_page=1"
+    current_year = datetime.now().year
+    search_year = min(year, current_year)
+
     for col, ind in WB_INDICATORS.items():
-        try:
-            url = base.format(iso=iso3, ind=ind, yr=year)
-            r = requests.get(url, timeout=8)
-            j = r.json()
-            if len(j) > 1 and j[1] and j[1][0]["value"] is not None:
-                data[col] = float(j[1][0]["value"])
-            else:
-                # Try previous year as fallback
-                url2 = base.format(iso=iso3, ind=ind, yr=year - 1)
-                r2 = requests.get(url2, timeout=8)
-                j2 = r2.json()
-                if len(j2) > 1 and j2[1] and j2[1][0]["value"] is not None:
-                    data[col] = float(j2[1][0]["value"])
-                else:
-                    data[col] = None
-        except Exception:
-            data[col] = None
-        time.sleep(0.05)
+        value = None
+        for y in range(search_year, 1999, -1):
+            try:
+                url = base.format(iso=iso3, ind=ind, yr=y)
+                r = requests.get(url, timeout=8)
+                j = r.json()
+                if len(j) > 1 and j[1] and j[1][0]["value"] is not None:
+                    value = float(j[1][0]["value"])
+                    break
+            except Exception:
+                continue
+            time.sleep(0.05)
+
+        data[col] = value
     return data
 
 
 @st.cache_data(ttl=3600)
 def fetch_who_immunization(iso3: str, year: int):
-    """Fetch WHO GHO immunization coverage data."""
+    """Fetch WHO GHO immunization coverage data with year fallback."""
     data = {}
+    current_year = datetime.now().year
+    search_year = min(year, current_year)
+
     for col, ind in WHO_INDICATORS.items():
-        try:
-            url = f"https://ghoapi.azureedge.net/api/{ind}?$filter=SpatialDim eq '{iso3}' and TimeDim eq {year}"
-            r = requests.get(url, timeout=8)
-            j = r.json()
-            vals = j.get("value", [])
-            if vals:
-                data[col] = float(vals[0].get("NumericValue", 0) or 0)
-            else:
-                # try year-1
-                url2 = f"https://ghoapi.azureedge.net/api/{ind}?$filter=SpatialDim eq '{iso3}' and TimeDim eq {year-1}"
-                r2 = requests.get(url2, timeout=8)
-                j2 = r2.json()
-                vals2 = j2.get("value", [])
-                data[col] = float(vals2[0].get("NumericValue", 0)) if vals2 else None
-        except Exception:
-            data[col] = None
-        time.sleep(0.05)
+        value = None
+        for y in range(search_year, 1999, -1):
+            try:
+                url = f"https://ghoapi.azureedge.net/api/{ind}?$filter=SpatialDim eq '{iso3}' and TimeDim eq {y}"
+                r = requests.get(url, timeout=8)
+                j = r.json()
+                vals = j.get("value", [])
+                if vals:
+                    value = float(vals[0].get("NumericValue", 0) or 0)
+                    break
+            except Exception:
+                continue
+            time.sleep(0.05)
+
+        data[col] = value
     return data
 
 
 @st.cache_data(ttl=3600)
 def fetch_who_measles(iso3: str, year: int):
-    """Fetch WHO measles surveillance data (cases, deaths, incidence)."""
+    """Fetch WHO measles surveillance data (cases, incidence) with year fallback."""
     data = {}
-    # Reported cases
-    try:
-        url = f"https://ghoapi.azureedge.net/api/WHS3_45?$filter=SpatialDim eq '{iso3}' and TimeDim eq {year}"
-        r = requests.get(url, timeout=8)
-        j = r.json()
-        vals = j.get("value", [])
-        if vals:
-            data["Reported_measles_cases"] = float(vals[0].get("NumericValue", 0) or 0)
-    except Exception:
+    current_year = datetime.now().year
+    search_year = min(year, current_year)
+
+    for y in range(search_year, 1999, -1):
+        try:
+            url = f"https://ghoapi.azureedge.net/api/WHS3_45?$filter=SpatialDim eq '{iso3}' and TimeDim eq {y}"
+            r = requests.get(url, timeout=8)
+            j = r.json()
+            vals = j.get("value", [])
+            if vals:
+                data["Reported_measles_cases"] = float(vals[0].get("NumericValue", 0) or 0)
+                break
+        except Exception:
+            continue
+    if "Reported_measles_cases" not in data:
         data["Reported_measles_cases"] = None
 
-    # Incidence rate
-    try:
-        url = f"https://ghoapi.azureedge.net/api/WHS3_46?$filter=SpatialDim eq '{iso3}' and TimeDim eq {year}"
-        r = requests.get(url, timeout=8)
-        j = r.json()
-        vals = j.get("value", [])
-        if vals:
-            data["Measles_incidence_rate (per million)"] = float(vals[0].get("NumericValue", 0) or 0)
-    except Exception:
+    for y in range(search_year, 1999, -1):
+        try:
+            url = f"https://ghoapi.azureedge.net/api/WHS3_46?$filter=SpatialDim eq '{iso3}' and TimeDim eq {y}"
+            r = requests.get(url, timeout=8)
+            j = r.json()
+            vals = j.get("value", [])
+            if vals:
+                data["Measles_incidence_rate (per million)"] = float(vals[0].get("NumericValue", 0) or 0)
+                break
+        except Exception:
+            continue
+    if "Measles_incidence_rate (per million)" not in data:
         data["Measles_incidence_rate (per million)"] = None
 
     return data
@@ -749,7 +758,16 @@ with tab3:
     with col_a:
         country_name = st.selectbox("Select Country", sorted(COUNTRIES.keys()), key="country_sel")
     with col_b:
-        year_sel = st.number_input("Year", min_value=2000, max_value=2024, value=2022, step=1, key="year_sel")
+        max_future_year = datetime.now().year + 5
+        default_year = min(2022, datetime.now().year)
+        year_sel = st.number_input(
+            "Year",
+            min_value=2000,
+            max_value=max_future_year,
+            value=default_year,
+            step=1,
+            key="year_sel"
+        )
     with col_c:
         st.markdown("<div style='height:1.85rem'></div>", unsafe_allow_html=True)
         fetch_clicked = st.button("🌐 Fetch Live Data", key="btn_fetch")

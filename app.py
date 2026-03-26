@@ -287,7 +287,10 @@ def _build(arch, n_features):
 @st.cache_resource
 def load_models(feature_method: str):
     model_subdir = MODEL_DIR_MAP.get(feature_method, "MI")
-    base_dir = os.path.join("models", model_subdir)
+    if model_subdir == "MI":
+        base_dir = os.path.join("models", "MI", "Mutual_Information")
+    else:
+        base_dir = os.path.join("models", model_subdir)
     n_features = len(FEATURE_SETS.get(feature_method, MI_FEATURES))
     models = {}
 
